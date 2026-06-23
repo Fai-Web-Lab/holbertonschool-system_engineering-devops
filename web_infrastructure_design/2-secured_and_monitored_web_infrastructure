@@ -1,0 +1,25 @@
+1- Why each element was added
+
+3 Firewalls — each protects a different layer. Firewall 1 sits at the edge and only allows port 443 (HTTPS) from the internet. Firewall 2 sits between the load balancer and the application servers, blocking anything that didn't come from the LB. Firewall 3 protects the database tier, allowing port 3306 only from the application servers and nothing else. Together they enforce the principle of least privilege at every boundary.
+SSL certificate — installed on the load balancer so that all traffic between the user and the infrastructure is encrypted via HTTPS. The certificate proves to the browser that the site is legitimate (domain validation) and establishes TLS to encrypt the payload.
+3 Monitoring clients — one agent installed on each server (load balancer, Server 1, Server 2). Each agent collects system metrics and ships them to a centralized monitoring service like Sumo Logic or Datadog.
+
+2- Concept explanations
+
+What firewalls do — a firewall inspects incoming and outgoing network packets and blocks or allows them based on rules (IP, port, protocol). It reduces the attack surface by making sure only expected traffic can reach each layer.
+Why HTTPS — HTTP sends data in plaintext, meaning passwords, tokens, and personal data can be read by anyone intercepting the connection (man-in-the-middle). HTTPS wraps the connection in TLS so data is encrypted in transit, authenticated, and integrity-checked.
+What monitoring is for — it gives you observability into system health: CPU, RAM, disk, network, error rates, response times, and request volume. Without it, you only know something is broken when users complain. With it, you can detect problems early, set alerts, and troubleshoot with real data.
+How monitoring agents collect data — the agent (e.g., Datadog Agent, Sumo Logic Collector) runs as a background process on the server. It reads local system stats (via /proc, OS APIs), scrapes application endpoints (like Nginx's stub_status), tails log files, and periodically ships all of this to the cloud monitoring platform over HTTPS.
+Monitoring QPS (Queries Per Second) on Nginx — enable the stub_status module in Nginx config:
+location /nginx_status {
+  stub_status on;
+  allow 127.0.0.1;
+  deny all;
+}
+The monitoring agent scrapes this endpoint, calculates the request delta over time, and reports it as QPS. You then set a dashboard panel and an alert threshold in your monitoring service.
+
+3- Remaining issues
+
+SSL terminates at the load balancer — after the LB decrypts the HTTPS traffic, it forwards plain HTTP to the backend servers. Any attacker who gains access to the internal network can read all traffic between the LB and the servers unencrypted. The fix is to re-encrypt with TLS between the LB and servers (end-to-end TLS).
+Only one MySQL server accepts writes — the Primary is the sole write endpoint. This creates two problems: all write load is bottlenecked through one machine, and if the Primary crashes, writes fail entirely until manual failover promotes the Replica. There is no automated high availability for writes.
+All components on every server — the database, web server, and application server all run on the same machine and share the same CPU, RAM, and disk. A traffic spike in the app layer steals resources from the database. A disk-heavy DB operation slows down Nginx. You also can't scale just the database without also scaling the web and app layers, which wastes resources and makes capacity planning harder.
