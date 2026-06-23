@@ -1,0 +1,12 @@
+1- Why each element was added
+
+Second HAProxy (load balancer cluster) — the original design had a single HAProxy which was itself a SPOF: if it went down, the entire site became unreachable even though the backend servers were healthy. Adding a second HAProxy and configuring both as a cluster (using keepalived + VRRP) solves this. Both nodes share a virtual IP and exchange heartbeats. If the active node fails, the passive one claims the virtual IP and takes over in seconds — with no manual intervention. This is what "configured as a cluster with the other one" means.
+Dedicated web server (Nginx only) — previously Nginx shared a server with the application server and MySQL, competing for the same CPU and RAM. A dedicated web server means Nginx can use all available resources for what it does best: handling HTTP connections, serving static assets, applying caching headers, and doing SSL/TLS work. It can also be scaled independently if static file traffic grows.
+Dedicated application server — the application server now gets full access to its machine's CPU and memory for running business logic. This matters because app servers tend to be CPU-intensive and bursty. Dedicating a server also makes horizontal scaling straightforward: if load increases, you add more app server nodes behind the load balancer without touching the web or database tiers.
+Dedicated database server — MySQL benefits enormously from dedicated hardware. Its InnoDB buffer pool can be configured to consume most of the server's RAM (for in-memory caching of hot data). The disks can be fast NVMe SSDs tuned for I/O-heavy workloads. With a shared server, a spike in app-server CPU would steal resources from the DB, causing query latency to spike. Isolation eliminates this.
+
+2- Web server vs application server — the distinction
+
+A web server (Nginx) speaks HTTP. Its job is to accept TCP connections, parse HTTP headers, serve files from disk, and route requests. It doesn't understand your application's business logic.
+An application server runs your code. It takes a request (from Nginx), executes logic (authentication, database queries, computation), and returns a structured response. Examples: Gunicorn (Python), Puma (Ruby), Node.js process, PHP-FPM.
+Splitting them means each can be optimized, scaled, and restarted independently — a code deploy that restarts the app server doesn't affect Nginx's ability to serve cached static files.
