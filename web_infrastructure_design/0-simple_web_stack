@@ -1,0 +1,19 @@
+1- Request flow
+
+A user types www.foobar.com in their browser. The browser queries a DNS resolver, which looks up foobar.com and finds a www A record pointing to 8.8.8.8. The browser then opens a TCP connection to that IP and sends an HTTP request.
+
+2- Component roles
+
+Server — a physical or virtual machine with an OS, CPU, RAM, and storage. It listens for network connections and runs all the software below.
+Domain name — a human-readable alias (foobar.com) that maps to the server's IP. Without it, users would need to remember 8.8.8.8. It also lets you change hosting without changing what users type.
+DNS www record type — it's an A record (Address record). It maps the hostname www.foobar.com directly to an IPv4 address (8.8.8.8).
+Web server (Nginx) — the front door. It accepts incoming HTTP/HTTPS connections, serves static files directly (images, CSS, JS), handles SSL termination, and forwards dynamic requests to the application server. This separation keeps things fast.
+Application server — executes your business logic (PHP, Python, Node, etc.). It reads the request, runs code, queries the database, and builds a response to send back through Nginx.
+Database (MySQL) — persistent storage. The app server queries it to read/write users, posts, sessions — anything that needs to survive across requests.
+Communication protocol — the server communicates with the user's computer over HTTP/HTTPS, which runs on top of TCP/IP. Nginx handles TLS so the connection is encrypted end-to-end.
+
+3- Problems with this design
+
+Single Point of Failure (SPOF) — the entire site goes down if the server fails (hardware fault, OS crash, network outage). There's no redundancy anywhere.
+Maintenance downtime — deploying new code typically requires restarting Nginx or the app server. During that window, the site is unreachable. With only one server there's nowhere to shift traffic.
+No horizontal scaling — if traffic spikes, you can only scale up (bigger CPU/RAM) on that one machine, which has hard limits and costs. You can't add more servers to distribute load without redesigning the architecture entirely.
